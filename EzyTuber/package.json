@@ -1,0 +1,35 @@
+{
+  "name": "ezy-tuber",
+  "version": "2.0.0",
+  "description": "Ezy Tuber",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder --win portable"
+  },
+  "devDependencies": {
+    "electron": "^33.0.0",
+    "electron-builder": "^25.0.0"
+  },
+  "build": {
+    "appId": "vn.ezytuber.app",
+    "productName": "Ezy Tuber",
+    "directories": { "output": "dist" },
+    "win": {
+      "target": "portable",
+      "icon": "icon.ico"
+    },
+    "portable": {
+      "artifactName": "EzyTuber.exe"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "preload-settings.js",
+      "index.html",
+      "settings.html",
+      "icon.ico",
+      "icon.png"
+    ]
+  }
+}
