@@ -1,0 +1,296 @@
+<!DOCTYPE html><html lang="vi"><head><meta charset="utf-8"><title>Ezy Tuber - Cài đặt</title>
+<style>
+:root{color-scheme:dark}
+html,body{margin:0;height:100%;background:#24222b;color:#eee;font:14px/1.5 system-ui,"Segoe UI",sans-serif}
+body{padding:18px 22px;box-sizing:border-box;display:flex;flex-direction:column;gap:14px;overflow:auto}
+h1{font-size:17px;margin:0 0 2px}
+h2{font-size:15px;margin:6px 0 0}
+.hint{color:#9a97a6;font-size:12px}
+.row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.row>label:first-child{min-width:110px}
+button,select,input[type=text]{background:#fff;color:#222;border:0;border-radius:8px;padding:7px 12px;cursor:pointer;font:inherit}
+input[type=text]{cursor:text;min-width:0}
+button.pri{background:#6fe39a}
+button.danger{background:#ff7a7a}
+input[type=range]{flex:1;min-width:140px}
+#lvw{flex:1;min-width:120px;height:10px;background:#fff3;border-radius:5px;overflow:hidden}#lv{height:100%;width:0;background:#6fe39a}
+#msg{color:#ffb0b0;font-size:12px;min-height:16px}
+.sp{flex:1}
+footer{margin-top:auto;display:flex;gap:10px}
+.val{min-width:42px;text-align:right;color:#9a97a6}
+.col{display:flex;flex-direction:column;gap:14px}
+[hidden]{display:none!important}
+#tabs{gap:8px}#tabs button{background:#ffffff22;color:#ddd}#tabs button.on{background:#6fe39a;color:#222;font-weight:600}
+details{background:#2f2c38;border-radius:10px;padding:2px 12px}
+summary{cursor:pointer;padding:8px 0;font-weight:600}
+.tr{display:flex;align-items:center;gap:8px;padding:3px 0}
+.tr>label{flex:0 0 210px;font-size:13px}
+.tr input[type=range]{min-width:80px}
+.tr .val{min-width:46px;font-size:12px}
+.tr button{padding:1px 8px;font-size:13px;background:#ffffff22;color:#ddd}
+.tr button:disabled{opacity:.25;cursor:default}
+/* tab Model */
+.mcard{background:#2f2c38;border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;gap:8px;border:2px solid transparent}
+.mcard.cur{border-color:#6fe39a}
+.mcard.bad{border-color:#ff7a7a66}
+.mcard .top{display:flex;gap:8px;align-items:center}
+.mcard input[type=text]{flex:1;font-weight:600}
+.mcard .sub{font-size:12px;color:#9a97a6;word-break:break-all}
+.mcard .err{font-size:12px;color:#ffb0b0}
+.imp{white-space:pre-wrap;font-size:12px;border-radius:8px;padding:8px 10px;background:#ffffff14}
+.imp.ok{background:#6fe39a22;color:#b9f5d0}.imp.warn{background:#ffd86622;color:#ffe9a8}.imp.err{background:#ff7a7a22;color:#ffc0c0}
+#tabModel.dragover{outline:3px dashed #6fe39a;outline-offset:6px;border-radius:10px}
+.fcard{background:#2f2c38;border-radius:10px;padding:8px 12px;display:flex;flex-direction:column;gap:6px}
+.fcard h3{margin:2px 0 4px;font-size:14px}
+.frow{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:3px 0;border-top:1px solid #ffffff10}
+.frow:first-of-type{border-top:0}
+.frow .dot{width:16px;text-align:center;color:#9a97a6}.frow.on .dot{color:#6fe39a}.frow.on .fn{font-weight:700;color:#b9f5d0}
+.frow .hk{min-width:118px}
+.frow .fn{flex:1;min-width:90px}.frow small{color:#9a97a6}
+.hk{min-width:150px;background:#ffffff22;color:#eee;text-align:left}
+.hk.cap{background:#ffd866;color:#222}
+.hk.empty{color:#9a97a6}
+.tag{font-size:11px;background:#6fe39a;color:#222;border-radius:6px;padding:1px 7px;font-weight:600}
+</style></head><body>
+<div><h1>⚙️ Ezy Tuber</h1><div class="hint" id="topHint">Thay đổi được áp dụng và lưu ngay.</div></div>
+
+<div id="tabs" class="row"><button data-t="tabBasic" class="on">⚙️ Cơ bản</button><button data-t="tabModel">🧍 Model</button><button data-t="tabFace">😀 Biểu cảm</button><button data-t="tabTune">🎛️ Tinh chỉnh</button></div>
+
+<!-- ============ Cơ bản ============ -->
+<div id="tabBasic" class="col">
+<div class="row"><label>Micro</label><button id="mic">🎤 Bật mic</button><div id="lvw"><div id="lv"></div></div></div>
+<div id="msg"></div>
+<div class="row"><label for="sens">Độ nhạy mic</label><input type="range" id="sens" min="2" max="40"><span class="val" id="sensv"></span></div>
+<div class="row"><label>Emote</label><label><input type="checkbox" id="emo"> Hiện bong bóng emote</label></div>
+<div class="row"><label>Nói thử</label><label><input type="checkbox" id="spk"> Giữ Space = nói thử (khi cửa sổ model đang focus)</label></div>
+<div class="row"><label for="bg">Nền</label><select id="bg">
+<option value="transparent">Trong suốt (alpha)</option>
+<option value="#00b140">Nền xanh lá (chroma)</option><option value="#0047bb">Nền xanh dương</option>
+<option value="#ff00ff">Nền hồng (chroma)</option><option value="#2b2833">Nền tối</option><option value="#f2efe9">Nền sáng</option></select></div>
+<div class="row"><label for="scl">Cỡ model</label><input type="range" id="scl" min="30" max="130"><span class="val" id="sclv"></span></div>
+<div class="hint" style="margin-top:-8px">Cỡ model được lưu riêng cho từng model.</div>
+<div class="row"><label for="fps">Khung hình</label><select id="fps"><option value="60">60 FPS (mượt nhất)</option><option value="30">30 FPS (khuyên dùng)</option><option value="20">20 FPS</option><option value="15">15 FPS (tiết kiệm nhất)</option></select></div>
+<div class="row"><label for="breath">Nhịp thở</label><select id="breath"><option value="2">Mượt (12 lần/giây)</option><option value="1">Tiết kiệm (6 lần/giây)</option><option value="0">Tắt (nhẹ nhất khi đứng yên)</option></select></div>
+<div class="row"><label>Tiết kiệm</label><label><input type="checkbox" id="gpuOff"> Tắt tăng tốc GPU (thử nếu RAM/CPU vẫn cao)</label></div>
+<div class="hint" id="gpuNote"></div>
+<div class="row"><label>Cửa sổ</label><label><input type="checkbox" id="top"> Luôn trên cùng</label></div>
+<div class="row"><label>Phím mở Cài đặt</label><span id="hkSettingsBox"></span></div>
+<div class="hint" id="hkSettingsHint"></div>
+</div>
+
+<!-- ============ Model ============ -->
+<div id="tabModel" class="col" hidden>
+<div class="hint">Mỗi thư mục con trong thư mục model là một model. Bấm <b>Import model</b> và chọn file .zip (hoặc kéo thả file .zip vào tab này): app tự tìm đúng thư mục chứa model trong zip, bỏ file thừa, kiểm tra rồi đưa vào thư mục model. Làm thủ công: xem <b>model/README.txt</b>.</div>
+<div class="row"><button id="impBtn" class="pri">📥 Import model (.zip)</button><button id="openDir">📂 Mở thư mục model</button><button id="rescan">🔄 Quét lại</button></div>
+<div id="impMsg" class="imp" hidden></div>
+<div class="hint" id="dirPath"></div>
+<div id="mlist" class="col" style="gap:10px"></div>
+<div class="hint">Bấm vào ô phím rồi nhấn tổ hợp phím muốn dùng để chuyển nhanh sang model đó (kể cả khi đang chơi game). Esc = huỷ, Backspace = xoá phím.</div>
+</div>
+
+<!-- ============ Biểu cảm & Emote ============ -->
+<div id="tabFace" class="col" hidden>
+<h2>😀 Biểu cảm &amp; Emote: <span id="faceModel"></span></h2>
+<div class="hint">Bấm vào ô phím rồi nhấn tổ hợp phím để gán (dùng được cả khi đang chơi game). Phím biểu cảm: bấm lần nữa để quay về mặc định. Phím emote: bật/tắt. Mỗi model có bộ phím riêng.</div>
+<div id="faceBox" class="col" style="gap:10px"></div>
+</div>
+
+<!-- ============ Tinh chỉnh ============ -->
+<div id="tabTune" class="col" hidden>
+<h2>🎛️ Tinh chỉnh chuyển động: <span id="tuneModel"></span></h2>
+<div class="hint">Kéo là thấy model đổi ngay và tự lưu, riêng cho model này. Nút ↺ trả một thanh về mặc định.</div>
+<div id="tune"></div>
+<div class="row"><button id="tuneReset">↺ Đặt lại tất cả thanh kéo về mặc định</button></div>
+</div>
+
+<footer><button class="pri" id="done">💾 Lưu &amp; đóng</button><span class="sp"></span><button class="danger" id="quit">✕ Thoát ứng dụng</button></footer>
+
+<script>
+const $=s=>document.querySelector(s);
+let S={},ST={models:[],current:'',model:null,hotkeys:{}},tuneKey='';
+const send=p=>{Object.assign(S,p);api.set(p);render()};
+
+/* ================= Phím tắt: bắt tổ hợp phím rồi tự gán ================= */
+const pretty=a=>a?a.replace(/Super/g,'Win').replace(/Control/g,'Ctrl').replace(/Return/g,'Enter').replace(/\+/g,' + '):'';
+const KMAP={ArrowUp:'Up',ArrowDown:'Down',ArrowLeft:'Left',ArrowRight:'Right',Space:'Space',Enter:'Return',NumpadEnter:'Return',Tab:'Tab',Delete:'Delete',Insert:'Insert',Home:'Home',End:'End',PageUp:'PageUp',PageDown:'PageDown',
+ Minus:'-',Equal:'=',Comma:',',Period:'.',Slash:'/',Semicolon:';',Quote:"'",BracketLeft:'[',BracketRight:']',Backslash:'\\',Backquote:'`',NumpadAdd:'numadd',NumpadSubtract:'numsub',NumpadMultiply:'nummult',NumpadDivide:'numdiv',NumpadDecimal:'numdec'};
+function accelFromEvent(e){
+ const c=e.code;let k=null;
+ if(/^Key[A-Z]$/.test(c))k=c[3];else if(/^Digit\d$/.test(c))k=c[5];else if(/^F([1-9]|1\d|2[0-4])$/.test(c))k=c;
+ else if(/^Numpad\d$/.test(c))k='num'+c[6];else k=KMAP[c]||null;
+ if(!k)return null; // mới nhấn phím bổ trợ (Ctrl/Alt/Shift/Win): chờ phím chính
+ const mods=[];if(e.ctrlKey)mods.push('Control');if(e.altKey)mods.push('Alt');if(e.shiftKey)mods.push('Shift');if(e.metaKey)mods.push('Super');
+ if(!mods.length&&!/^F\d+$/.test(k))return{error:'Cần giữ thêm Ctrl / Alt / Shift / Win (riêng F1–F24 thì dùng một mình được)'};
+ return{accel:[...mods,k].join('+')}}
+let capturing=null;
+const killKey=e=>{e.preventDefault();e.stopPropagation()};
+function stopCapture(){if(!capturing)return;const c=capturing;capturing=null;removeEventListener('keydown',onCapKey,true);setTimeout(()=>removeEventListener('keyup',killKey,true),300);api.hotkeyCapture(false);c.btn.classList.remove('cap');c.paint()}
+function onCapKey(e){
+ if(!capturing)return;e.preventDefault();e.stopPropagation();
+ if(e.key==='Escape'){stopCapture();return}
+ if(e.key==='Backspace'&&!e.ctrlKey&&!e.altKey&&!e.shiftKey&&!e.metaKey){const c=capturing;stopCapture();c.apply('');return}
+ const r=accelFromEvent(e);if(!r)return;
+ if(r.error){capturing.btn.textContent='⚠ '+r.error;return}
+ const c=capturing;stopCapture();c.apply(r.accel)}
+// tạo nút phím: get() lấy phím hiện tại, apply(accel) gọi khi bắt được phím mới -> trả về Promise<{ok,error}>
+function hotkeyButton(get,apply,errOf,short){
+ const btn=document.createElement('button');btn.className='hk';
+ const paint=()=>{const a=get(),err=errOf&&errOf();btn.classList.toggle('empty',!a);btn.textContent=(a?'⌨ '+pretty(a):(short?'⌨ Gán phím':'⌨ Chưa gán — bấm để gán'))+(err?'  ⚠':'');btn.title=err||''};
+ btn.onclick=()=>{if(capturing){stopCapture()}
+  capturing={btn,paint,apply:async a=>{const r=await apply(a);if(r&&!r.ok){btn.textContent='⚠ '+(r.error||'Không gán được');setTimeout(paint,2500)}}};
+  btn.classList.add('cap');btn.textContent=short?'⌨ Nhấn phím… (Esc huỷ)':'⌨ Nhấn tổ hợp phím…  (Esc huỷ, Backspace xoá)';api.hotkeyCapture(true);addEventListener('keydown',onCapKey,true);addEventListener('keyup',killKey,true)};
+ btn.addEventListener('blur',()=>{if(capturing&&capturing.btn===btn)stopCapture()});
+ paint();btn.paint=paint;return btn}
+
+/* ================= Tab Cơ bản ================= */
+function render(){
+ $('#mic').textContent=S.mic?'🎤 Tắt mic':'🎤 Bật mic';
+ $('#sens').value=S.sens;$('#sensv').textContent=S.sens;
+ $('#emo').checked=!!S.emote;$('#spk').checked=!!S.spk;
+ $('#bg').value=S.bg;$('#fps').value=S.fps;$('#breath').value=S.breath;$('#gpuOff').checked=!!S.gpuOff;$('#scl').value=S.scale;$('#sclv').textContent=S.scale+'%';$('#top').checked=!!S.top}
+$('#mic').onclick=()=>{$('#msg').textContent='';send({mic:!S.mic})};
+$('#sens').oninput=e=>send({sens:+e.target.value});
+$('#emo').onchange=e=>send({emote:e.target.checked});
+$('#spk').onchange=e=>send({spk:e.target.checked});
+$('#bg').onchange=e=>send({bg:e.target.value});
+$('#scl').oninput=e=>send({scale:+e.target.value});
+$('#fps').onchange=e=>send({fps:+e.target.value});
+$('#breath').onchange=e=>send({breath:+e.target.value});
+$('#gpuOff').onchange=e=>{$('#gpuNote').textContent='Cần thoát và mở lại app để áp dụng.';send({gpuOff:e.target.checked})};
+$('#top').onchange=e=>send({top:e.target.checked});
+function renderHotkeySettings(){
+ const box=$('#hkSettingsBox');box.replaceChildren(hotkeyButton(()=>ST.hotkeys.settings,a=>api.setSettingsHotkey(a),()=>(ST.hotkeys.errors||{}).settings));
+ $('#hkSettingsHint').textContent='Luôn có thêm phím dự phòng '+pretty(ST.hotkeys.fallback)+' (phòng khi quên phím đã gán).'}
+
+/* ================= Tab Model ================= */
+function renderModels(){
+ const list=$('#mlist');list.replaceChildren();
+ $('#dirPath').textContent='Thư mục model: '+ST.modelsDir;
+ if(!ST.models.length){const d=document.createElement('div');d.className='hint';d.textContent='Chưa có model nào. Tạo thư mục con trong thư mục model rồi bấm “Quét lại”.';list.appendChild(d);return}
+
+ for(const m of [...ST.models].sort((a,b)=>(b.ok?1:0)-(a.ok?1:0))){ // model dùng được lên trước, model hỏng xuống cuối
+  const card=document.createElement('div');card.className='mcard'+(m.id===ST.current?' cur':'')+(m.ok?'':' bad');
+  const top=document.createElement('div');top.className='top';
+  if(m.ok){const name=document.createElement('input');name.type='text';name.value=m.name;name.maxLength=60;name.title='Tên hiển thị (sửa được)';
+   name.onchange=()=>api.renameModel(m.id,name.value);
+   name.onkeydown=e=>{if(e.key==='Enter')name.blur()};
+   top.appendChild(name)}
+  else{const t=document.createElement('b');t.textContent=m.id;t.style.flex='1';top.appendChild(t)}
+  if(m.ok){
+   if(m.id===ST.current){const t=document.createElement('span');t.className='tag';t.textContent='ĐANG DÙNG';top.appendChild(t)}
+   else{const b=document.createElement('button');b.textContent='Dùng';b.className='pri';b.onclick=()=>api.switchModel(m.id);top.appendChild(b)}}
+  card.appendChild(top);
+  const sub=document.createElement('div');sub.className='sub';sub.textContent='Thư mục: model/'+m.id;card.appendChild(sub);
+  if(m.ok){
+   const r=document.createElement('div');r.className='row';
+   const l=document.createElement('label');l.textContent='Phím chuyển sang model này';l.style.fontSize='13px';r.appendChild(l);
+   r.appendChild(hotkeyButton(()=>m.hotkey,a=>api.setModelHotkey(m.id,a),()=>(ST.hotkeys.errors||{})['model:'+m.id]));
+   card.appendChild(r)}
+  else{const e=document.createElement('div');e.className='err';e.textContent='⚠ Không dùng được: '+m.error;card.appendChild(e)}
+  list.appendChild(card)}}
+$('#openDir').onclick=()=>api.openFolder();
+async function doImport(paths){
+ const m=$('#impMsg');m.hidden=false;m.className='imp';m.textContent='⏳ Đang import…';
+ const r=await api.importModels(paths);
+ if(r.canceled){m.hidden=true;return}
+ const L=[];
+ if(r.imported.length)L.push('✔ Đã import '+r.imported.length+' model: '+r.imported.map(x=>x.name).join(', ')+'. Bấm “Dùng” ở model muốn chuyển sang.');
+ for(const s of r.skipped)L.push('↷ Bỏ qua: '+s);
+ for(const e of r.errors)L.push('⚠ '+e);
+ if(!L.length)L.push('Không có gì để import.');
+ m.className='imp '+(r.errors.length?(r.imported.length?'warn':'err'):'ok');m.textContent=L.join('\n')}
+$('#impBtn').onclick=()=>doImport();
+{const tab=$('#tabModel'),isFiles=e=>e.dataTransfer&&[...e.dataTransfer.types].includes('Files');
+ tab.addEventListener('dragover',e=>{if(isFiles(e)){e.preventDefault();tab.classList.add('dragover')}});
+ tab.addEventListener('dragleave',e=>{if(!tab.contains(e.relatedTarget))tab.classList.remove('dragover')});
+ tab.addEventListener('drop',e=>{tab.classList.remove('dragover');if(!isFiles(e))return;e.preventDefault();
+  const ps=[...e.dataTransfer.files].map(f=>api.pathOf(f)).filter(Boolean);
+  if(!ps.length)return;doImport(ps)});
+ // thả nhầm ra ngoài vùng tab thì không để Chromium mở file
+ for(const ev of ['dragover','drop'])document.addEventListener(ev,e=>{if(e.dataTransfer&&[...e.dataTransfer.types].includes('Files')&&!tab.contains(e.target))e.preventDefault()})}
+$('#rescan').onclick=()=>api.rescan();
+
+/* ================= Tab Tinh chỉnh (sinh từ danh sách "tune" trong model.json của model đang dùng) ================= */
+let TUNE=[],NIDs={},rows={},tmr=0;
+const pathGet=p=>{const a=p.split('.');let o=NIDs[a[0]];for(let i=1;i<a.length&&o;i++)o=o[a[i]];return o};
+const dec=d=>{const t=String(d.step);return t.includes('.')?t.split('.')[1].length:0};
+const pushTune=()=>{if(tmr)return;tmr=setTimeout(()=>{tmr=0;api.set({tune:S.tune})},33)}; // gom lại ~30 lần/giây
+function paintRow(d){const r=rows[d.k],v=Number.isFinite(S.tune[d.k])?S.tune[d.k]:d.def;
+ r.rg.value=v;r.val.textContent=(+v).toFixed(dec(d));r.rs.disabled=Math.abs(v-d.def)<d.step/2}
+const paintTune=()=>{S.tune=S.tune||{};TUNE.forEach(paintRow)};
+function buildTune(){
+ const box=$('#tune');box.replaceChildren();rows={};
+ const m=ST.model;TUNE=m&&m.rig.tune?m.rig.tune:[];NIDs={};(m?m.rig.nodes||[]:[]).forEach(n=>NIDs[n.id]=n);
+ $('#tuneModel').textContent=m?m.name:'(chưa có model)';
+ $('#tuneReset').hidden=!TUNE.length;
+ if(!TUNE.length){const d=document.createElement('div');d.className='hint';d.textContent=m?'Model này chưa khai báo thanh kéo nào (mục "tune" trong model.json).':'Chưa có model nào đang dùng.';box.appendChild(d);return}
+ TUNE.forEach(d=>{if(!d.g)d.def=+((pathGet(d.set[0])*(d.sign||1))||0).toFixed(4)});
+ let grp=null,det=null;
+ for(const d of TUNE){
+  if(d.group!==grp){grp=d.group;det=document.createElement('details');det.open=grp===TUNE[0].group;
+   det.innerHTML='<summary></summary>';det.firstChild.textContent=grp;box.appendChild(det)}
+  const row=document.createElement('div');row.className='tr';
+  row.innerHTML='<label></label><input type="range"><span class="val"></span><button title="Về mặc định">↺</button>';
+  const [lb,rg,val,rs]=row.children;lb.textContent=d.label;rg.min=d.min;rg.max=d.max;rg.step=d.step;
+  rg.oninput=()=>{S.tune=S.tune||{};S.tune[d.k]=+rg.value;paintRow(d);pushTune()};
+  rs.onclick=()=>{delete S.tune[d.k];paintRow(d);api.set({tune:S.tune})};
+  rows[d.k]={rg,val,rs};det.appendChild(row)}
+ // nút cài sẵn: đặt 4 thanh "nhân chung" cùng lúc (chỉ hiện nếu model có các thanh này)
+ const KS=['m_look','m_voice','m_breath','m_spring'];
+ if(KS.every(k=>TUNE.some(d=>d.k===k))){
+  const first=box.querySelector('details'),row=document.createElement('div');row.className='row';row.style.padding='2px 0 8px';
+  const PRE=[['😌 Nhẹ',[.5,.5,.7,.5]],['🙂 Vừa (mặc định)',null],['😆 Mạnh',[1.6,1.5,1.3,1.5]]];
+  row.innerHTML='<label style="min-width:60px;font-size:13px">Cài sẵn</label>';
+  for(const[name,v]of PRE){const b=document.createElement('button');b.textContent=name;
+   b.onclick=()=>{S.tune=S.tune||{};KS.forEach((k,i)=>{if(v)S.tune[k]=v[i];else delete S.tune[k]});paintTune();api.set({tune:S.tune})};row.appendChild(b)}
+  first.insertBefore(row,first.children[1])}
+ paintTune()}
+$('#tuneReset').onclick=()=>{S.tune={};paintTune();api.set({tune:{}})};
+
+/* ================= Tab Biểu cảm & Emote (đọc từ expressions / emotes trong model.json của model đang dùng) ================= */
+function renderFace(){
+ const box=$('#faceBox');box.replaceChildren();
+ const m=ST.model,rig=m&&m.rig;$('#faceModel').textContent=m?m.name:'(chưa có model)';
+ const ex=(rig&&rig.expressions)||{},emotes=(rig&&rig.emotes)||[],keys=ST.keys||{},errs=ST.hotkeys.errors||{},face=ST.face||{sel:{},emotes:[]};
+ if(!Object.keys(ex).length&&!emotes.length){
+  const d=document.createElement('div');d.className='hint';
+  d.textContent=m?'Model này chưa có biểu cảm hay emote (mục "expressions" và "emotes" trong model.json). Tạo bằng Ezy Maker (tab Biểu cảm) rồi xuất lại, hoặc dùng model được rig với bản mới hỗ trợ nhiều biểu cảm.':'Chưa có model nào đang dùng.';
+  box.appendChild(d);return}
+ const row=(parent,label,sub,active,btnText,onUse,key)=>{
+  const r=document.createElement('div');r.className='frow'+(active?' on':'');
+  const dot=document.createElement('span');dot.className='dot';dot.textContent=active?'●':'○';
+  const fn=document.createElement('span');fn.className='fn';fn.textContent=label;if(sub){const s=document.createElement('small');s.textContent=' '+sub;fn.appendChild(s)}
+  const b=document.createElement('button');b.className='sm';b.textContent=btnText;b.onclick=onUse;
+  r.append(dot,fn,b,hotkeyButton(()=>keys[key],a=>api.setActionHotkey(key,a),()=>errs['act:'+key],true));parent.appendChild(r)};
+ for(const[ch,d]of Object.entries(ex)){
+  const card=document.createElement('div');card.className='fcard';const h=document.createElement('h3');h.textContent=d.name||ch;card.appendChild(h);
+  for(const s of d.states)row(card,s.name||s.id,s.id===d.default?'(mặc định)':'',face.sel[ch]===s.id,'Chọn',()=>api.faceSet({type:'expr',ch,id:s.id}),'expr:'+ch+':'+s.id);
+  box.appendChild(card)}
+ if(emotes.length){
+  const card=document.createElement('div');card.className='fcard';const h=document.createElement('h3');h.textContent='Emote';card.appendChild(h);
+  for(const e of emotes){const bits=[];if(e.duration>0)bits.push('tự tắt sau '+e.duration+'s');if(e.group)bits.push('nhóm '+e.group);
+   row(card,e.name||e.id,bits.join(', '),(face.emotes||[]).includes(e.id),(face.emotes||[]).includes(e.id)?'Tắt':'Bật',()=>api.faceSet({type:'emote',id:e.id}),'emote:'+e.id)}
+  box.appendChild(card)}
+ const card=document.createElement('div');card.className='fcard';
+ row(card,'Đặt lại tất cả','về mặc định và tắt hết emote',false,'Đặt lại',()=>api.faceSet({type:'reset'}),'reset');box.appendChild(card)}
+
+/* ================= Khung chung ================= */
+document.querySelectorAll('#tabs button').forEach(b=>b.onclick=()=>{
+ stopCapture();
+ document.querySelectorAll('#tabs button').forEach(x=>x.classList.toggle('on',x===b));
+ ['tabBasic','tabModel','tabFace','tabTune'].forEach(id=>$('#'+id).hidden=id!==b.dataset.t)});
+$('#done').onclick=()=>window.close();
+$('#quit').onclick=()=>api.quit();
+function applyState(st,first){
+ ST=st;S=st.settings;
+ render();renderHotkeySettings();renderModels();renderFace();
+ const key=st.model?st.model.id+'|'+st.model.name:'';
+ if(first||key!==tuneKey||(!Object.keys(rows).length&&st.model)){tuneKey=key;buildTune()}else paintTune();
+ $('#msg').textContent=st.mic&&st.mic.error||''}
+api.getState().then(st=>applyState(st,true));
+api.onState(st=>{ // thay đổi từ phía chương trình: đổi model, quét lại, đổi/xoá phím, đổi tên...
+ if(capturing)return; // đang bắt phím thì không dựng lại giao diện
+ applyState(st,false)});
+api.onMic(m=>{if(m.error){S.mic=false;$('#msg').textContent=m.error}render()});
+api.onLevel(v=>{$('#lv').style.width=Math.round(v*100)+'%'});
+</script></body></html>

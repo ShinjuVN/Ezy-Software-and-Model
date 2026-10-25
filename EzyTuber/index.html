@@ -1,0 +1,174 @@
+<!DOCTYPE html><html lang="vi"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ezy Tuber</title>
+<style>
+:root{--sb:transparent}
+html,body{height:100%;margin:0;overflow:hidden}
+body{background:var(--sb);font:13px/1.4 system-ui,"Segoe UI",sans-serif}
+#view{position:absolute;inset:0;overflow:hidden;-webkit-app-region:drag}
+#st{position:absolute}
+#st img{position:absolute;left:0;top:0;display:block;transform-origin:0 0;user-select:none;-webkit-user-drag:none}
+/* mỗi phần có chuyển động = 1 layer GPU riêng: chỉ ghép layer, không phải vẽ lại ảnh mỗi khung hình */
+.l{will-change:transform}
+#nomodel{position:absolute;left:8px;right:8px;top:38%;padding:12px;border-radius:10px;background:#000b;color:#fff;text-align:center}
+#nomodel[hidden]{display:none}
+</style></head><body>
+<div id="view"></div>
+<div id="nomodel" hidden>Chưa có model nào dùng được.<br>Đặt model vào thư mục <b>model/</b> rồi bấm phím mở Cài đặt (mặc định <b>Win + F12</b>) → tab <b>Model</b>.</div>
+<script>
+const $=s=>document.querySelector(s),clamp=(v,a,b)=>Math.max(a,Math.min(b,v)),R=document.documentElement,A=window.api;
+let emote=0,spOn=0,fps=30,sensV=14,bg='transparent';
+// biểu cảm đang chọn + emote đang bật (do chương trình chính gửi sang theo phím tắt)
+let FS={sel:{},emotes:[]};
+const whenOk=w=>{for(const k in w){const v=w[k],arr=Array.isArray(v)?v:[v];if(k==='emote'){if(!arr.some(x=>FS.emotes.includes(x)))return false}else if(!arr.includes(FS.sel[k]))return false}return true};
+
+/* ---------- Rig: dựng model từ các layer theo cây khớp cha-con (dữ liệu nằm trong model/<tên>/model.json) ---------- */
+let V=null,NODES=[],NID={},SPR=[],TUNE=[],S=1;
+const view=$('#view'),C={};
+// hệ số tổng (các thanh "nhân chung" / theo dõi chuột trong tab Tinh chỉnh)
+const MG_DEF={look:1,voice:1,breath:1,spring:1,range:1,follow:.15,vfollow:.4},MG={...MG_DEF};
+const BAD=new Set(['__proto__','constructor','prototype']);
+function layout(){
+  if(!V)return;
+  const st=$('#st'),W=innerWidth,H=innerHeight;S=Math.min(H/V.h,W/V.w);
+  st.style.left=((W-V.w*S)/2)+'px';st.style.top='0';st.style.width=V.w*S+'px';st.style.height=V.h*S+'px';
+  for(const o of SPR){o.l=(o.x-V.x)*S;o.t=(o.y-V.y)*S;const s=o.im.style;s.width=o.w*S+'px';s.height=o.h*S+'px';
+    if(!o.n){s.left=o.l+'px';s.top=o.t+'px'}}
+  for(const n of NODES){n.px=(n.pivot[0]-V.x)*S;n.py=(n.pivot[1]-V.y)*S}
+  for(const k in C)delete C[k]}
+// chỉ ghi vào DOM khi giá trị thật sự đổi -> khung hình không đổi thì trình duyệt không phải vẽ gì
+const T=(id,el,v)=>{if(C[id]!==v){C[id]=v;el.style.transform=v}};
+const D=(id,el,on)=>{on=!!on;if(C[id]!==on){C[id]=on;el.style.display=on?'':'none'}};
+const f2=n=>n.toFixed(2),ID=[1,0,0,1,0,0];
+const mul=(m,n)=>[m[0]*n[0]+m[2]*n[1],m[1]*n[0]+m[3]*n[1],m[0]*n[2]+m[2]*n[3],m[1]*n[2]+m[3]*n[3],m[0]*n[4]+m[2]*n[5]+m[4],m[1]*n[4]+m[3]*n[5]+m[5]];
+const qn=(v,k)=>Math.round(v/k)*k;
+// Nhịp thở: BR = số lần cập nhật/giây khi đứng yên (0 = tắt); QP/QS = bước làm tròn vị trí (px canvas) / tỉ lệ
+let BR=12,QP=.25,QS=.0005,SNQ=4;
+function setBreath(v){BR=[0,6,12][v]??12;QP=v==1?.5:.25;QS=v==1?.001:.0005;SNQ=v==1?2:4}
+// Thanh kéo tinh chỉnh: ghi đè các số trong nodes theo đường dẫn "khớp.nhóm.thuộc_tính"
+const pathOk=a=>a.length>=2&&a.every(x=>!BAD.has(x))&&NID[a[0]];
+const pathGet=p=>{const a=p.split('.');if(!pathOk(a))return;let o=NID[a[0]];for(let i=1;i<a.length&&o;i++)o=o[a[i]];return o};
+const pathSet=(p,v)=>{const a=p.split('.');if(!pathOk(a))return;let o=NID[a[0]];for(let i=1;i<a.length-1;i++){const nx=o[a[i]];if(nx!==undefined&&(typeof nx!=='object'||nx===null))return;o=nx||(o[a[i]]={})}o[a[a.length-1]]=v};
+function applyTune(t){for(const d of TUNE){const v=t&&Number.isFinite(t[d.k])?t[d.k]:d.def;if(d.g)MG[d.g]=v;else for(const p of d.set)pathSet(p,v*(d.sign||1))}}
+function sigOf(name,lq){
+  if(name=='lx')return lx;if(name=='ly')return ly;if(name=='lvl')return lq;
+  const[a,b]=name.split('.');return NID[a]?NID[a].cur[b]||0:0}
+// lò xo (Euler nửa ẩn, chia bước nhỏ cho ổn định). Trả về true nếu còn đang dao động
+function spring(st,kx,kv,target,k,c,dt){
+  if(!st.init){st[kx]=target;st[kv]=0}
+  let x=st[kx],v=st[kv];const n=Math.max(1,Math.ceil(dt*120)),h=dt/n;
+  for(let i=0;i<n;i++){v+=(-k*(x-target)-c*v)*h;x+=v*h}
+  st[kx]=x;st[kv]=v;return Math.abs(v)>.02||Math.abs(x-target)>.01}
+let rigBusy=false;
+function render(tb,blink,talk,dt){
+  if(!V)return;
+  const lq=Math.round(lvl*20)/20,sn=BR?Math.round(Math.sin(tb*2)*SNQ)/SNQ:0;let busy=false;
+  for(const n of NODES){
+    let tx=0,ty=0,rot=n.rest?n.rest.rot||0:0,sx=1,sy=1;const st=n.st;
+    if(n.look){tx+=(n.look.x||0)*lx*MG.look;ty+=(n.look.y||0)*ly*MG.look;rot+=(n.look.rot||0)*lx*MG.look}
+    if(n.voice){ty+=(n.voice.y||0)*lq*MG.voice;sy*=1+(n.voice.sy||0)*lq*MG.voice}
+    if(n.breath){ty+=(n.breath.y||0)*sn*MG.breath;sy*=1+(n.breath.sy||0)*sn*MG.breath}
+    n.cur.ty=ty; // lò xo dọc của khớp con đọc giá trị này
+    n.cur.rot=rot;
+    if(n.spring){const p=n.spring,s=sigOf(p.src,lq)*(p.amp||1);busy=spring(st,'x','v',s,p.k,p.c,dt)||busy;rot+=(p.gain||1)*MG.spring*(st.x-s)}
+    if(n.springY){const p=n.springY,s=sigOf(p.src,lq)*(p.amp||1);busy=spring(st,'y','vy',s,p.k,p.c,dt)||busy;ty+=(p.gain||1)*MG.spring*(st.y-s)}
+    st.init=1;
+    const c=n.cur;c.rot=qn(rot,.05);c.tx=qn(tx,QP);c.ty=qn(ty,QP);c.sx=qn(sx,QS);c.sy=qn(sy,QS);
+    const r=c.rot*Math.PI/180,cs=Math.cos(r),sn_=Math.sin(r),a=cs*c.sx,b=sn_*c.sx,cc=-sn_*c.sy,d=cs*c.sy,
+      e=n.px+c.tx*S-(a*n.px+cc*n.py),f=n.py+c.ty*S-(b*n.px+d*n.py);
+    n.M=mul(n.parent?NID[n.parent].M:ID,[a,b,cc,d,e,f])}
+  for(const o of SPR){
+    if(o.show||o.when){let on=true;if(o.show)on=o.show=='talk'?talk:o.show=='!talk'?!talk:o.show=='emote'?emote:1;if(on&&o.when)on=whenOk(o.when);D(o.id,o.im,on);if(!on)continue}
+    if(!o.n)continue;
+    let M=o.n.M;
+    if(o.blink&&blink){ // chớp mắt: bóp dẹt theo trục dọc quanh tâm sprite và/hoặc đẩy mi xuống
+      const v=blink,cy=o.t+o.h*S/2,k=o.blink.sq?1-.92*v:1;
+      M=mul(M,[1,0,0,k,0,cy*(1-k)+(o.blink.dy||0)*v*S])}
+    if(o.vs){ // miệng mở: co giãn theo âm lượng quanh điểm (ox,oy) của sprite
+      const kx=o.vs.x[0]+lq*o.vs.x[1],ky=o.vs.y[0]+lq*o.vs.y[1],cx=o.l+o.w*S*o.vs.ox,cy=o.t+o.h*S*o.vs.oy;
+      M=mul(M,[kx,0,0,ky,cx*(1-kx),cy*(1-ky)])}
+    T(o.id,o.im,`matrix(${M[0].toFixed(4)},${M[1].toFixed(4)},${M[2].toFixed(4)},${M[3].toFixed(4)},${f2(M[0]*o.l+M[2]*o.t+M[4])},${f2(M[1]*o.l+M[3]*o.t+M[5])})`)}
+  rigBusy=busy}
+
+/* ---------- Nạp / đổi model ---------- */
+let loadSeq=0,lastSet=null;
+// Nạp & giải mã trước toàn bộ ảnh của model mới RỒI mới hoán đổi -> đổi model không bị chớp trống
+async function loadModel(p){
+  const seq=++loadSeq;
+  if(!p){swapModel(null);return}
+  const rig=JSON.parse(JSON.stringify(p.rig)),nodes=(rig.nodes||[]).map(n=>({...n,cur:{rot:0,tx:0,ty:0,sx:1,sy:1},M:null,st:{init:0,x:0,v:0,y:0,vy:0}})),nid={};
+  nodes.forEach(n=>nid[n.id]=n);
+  const st=document.createElement('div');st.id='st';
+  const spr=rig.sprites.map(o=>{
+    const im=new Image();im.draggable=false;im.alt='';
+    im.src=p.baseUrl+o.src.split(/[\\/]/).map(encodeURIComponent).join('/')+'?r='+p.rev;
+    if(o.node)im.className='l'; // chỉ sprite có chuyển động mới thành layer GPU riêng
+    if(o.show||o.when)im.style.display='none';
+    st.appendChild(im);return{...o,im,n:o.node?nid[o.node]:null}});
+  await Promise.all(spr.map(o=>o.im.decode().catch(()=>{})));
+  if(seq!==loadSeq)return; // đã có yêu cầu đổi model mới hơn
+  swapModel({rig,nodes,nid,spr,st})}
+function swapModel(m){
+  V=m?m.rig.crop:null;NODES=m?m.nodes:[];NID=m?m.nid:{};SPR=m?m.spr:[];TUNE=m?(m.rig.tune||[]):[];
+  for(const k in C)delete C[k];
+  view.replaceChildren(...(m?[m.st]:[]));
+  $('#nomodel').hidden=!!m;
+  Object.assign(MG,MG_DEF);
+  TUNE.forEach(d=>{if(!d.g)d.def=+((pathGet(d.set[0])*(d.sign||1))||0).toFixed(4)});
+  layout();
+  if(lastSet)applyTune(lastSet.tune)}
+
+/* ---------- Nền / phím Space nói thử ---------- */
+function setBg(v){if(v===bg&&R.style.getPropertyValue('--sb'))return;bg=v;R.style.setProperty('--sb',v)}
+let sp=0;
+addEventListener('keydown',e=>{if(e.key==' '&&spOn){sp=1;e.preventDefault()}});
+addEventListener('keyup',e=>{if(e.key==' '){sp=0;if(spOn)e.preventDefault()}});
+
+/* ---------- Mic ---------- */
+let an,buf,micOn=0,micStream=null,micCtx=null,micBusy=0;
+async function micStart(){
+ if(micOn||micBusy)return;micBusy=1;
+ try{const st=await navigator.mediaDevices.getUserMedia({audio:true}),ac=new AudioContext();await ac.resume();an=ac.createAnalyser();an.fftSize=1024;ac.createMediaStreamSource(st).connect(an);buf=new Uint8Array(1024);micStream=st;micCtx=ac;micOn=1;A.micStatus({on:true})}
+ catch(x){A.micStatus({on:false,error:'Không bật được mic (bị chặn hoặc không có thiết bị).'})}
+ micBusy=0}
+function micStop(){if(!micOn)return;micOn=0;try{micStream.getTracks().forEach(t=>t.stop());micCtx.close()}catch(e){}micStream=micCtx=null;A.micStatus({on:false})}
+
+/* ---------- Nhận cài đặt từ cửa sổ Settings ---------- */
+let G=null,lvOn=0;
+function applySettings(c){
+ if(!c)return;
+ lastSet=c;
+ applyTune(c.tune);emote=c.emote?1:0;spOn=c.spk?1:0;if(!spOn)sp=0;
+ sensV=c.sens;setBg(c.bg);
+ if(c.fps&&c.fps!==fps)setFps(c.fps);
+ setBreath(c.breath);
+ if(c.mic)micStart();else micStop()}
+A.onCursor(v=>{G=v});
+A.onLvl(v=>{lvOn=v?1:0});
+A.onSettings(applySettings);
+A.onModel(loadModel);
+A.onFace(f=>{FS=f});
+A.getFace().then(f=>{FS=f});
+A.getModel().then(loadModel).then(()=>A.getSettings()).then(applySettings);
+
+/* ---------- Vòng lặp: setInterval theo FPS, độc lập với rAF/vsync ---------- */
+let lx=0,ly=0,lvl=0,blinkAt=1500,blinkEnd=0,last=performance.now(),lastLv=0,timer=0,blinkStart=0;
+function tick(){
+ const now=performance.now(),dt=Math.min(100,now-last)/1000,t=now/1000;last=now;
+ const tx=G?clamp(G.x*MG.range,-1,1):0,ty=G?clamp(G.y*MG.range,-1,1):0;
+ // hệ số làm mượt tính theo thời gian thực -> cảm giác chuyển động không đổi dù FPS bao nhiêu
+ const k=1-Math.pow(1-MG.follow,dt*60);lx+=(tx-lx)*k;ly+=(ty-ly)*k;
+ let raw=0;if(micOn){an.getByteTimeDomainData(buf);let s=0;for(const v of buf){const d=(v-128)/128;s+=d*d}raw=Math.sqrt(s/buf.length)*sensV}
+ lvl+=((sp?.7+Math.sin(t*18)*.2:raw)-lvl)*(1-Math.pow(1-MG.vfollow,dt*60));lvl=clamp(lvl,0,1);
+ if(lvOn&&now-lastLv>50){lastLv=now;A.level(lvl)}
+ if(now>blinkAt){blinkStart=now;blinkEnd=now+140;blinkAt=now+2000+Math.random()*3500}
+ // chớp mắt: khép nhanh (~55ms), mở chậm hơn (~85ms); làm tròn 0.25 -> chỉ ~5 lần ghi DOM mỗi lần chớp
+ let bv=0;if(now<blinkEnd){const p=(now-blinkStart)/140;bv=Math.round((p<.4?p/.4:(1-p)/.6)*4)/4}
+ // khi đứng yên chỉ cập nhật "nhịp thở" BR lần/giây (chọn trong Settings) -> hầu hết các tick không đổi gì, không tốn vẽ
+ const still=Math.abs(tx-lx)<.003&&Math.abs(ty-ly)<.003&&lvl<.02&&!sp&&!rigBusy;
+ render(still&&BR?Math.floor(t*BR)/BR:BR?t:0,bv,lvl>.1,dt)}
+function setFps(v){fps=v;clearInterval(timer);timer=setInterval(tick,Math.round(1000/fps))}
+
+addEventListener('resize',layout);
+setFps(fps);
+</script></body></html>

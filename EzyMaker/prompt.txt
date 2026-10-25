@@ -1,0 +1,287 @@
+=====================================================================
+ NHIỆM VỤ: RIG MODEL PNGTUBER (BẢN MỚI: NHIỀU BIỂU CẢM + NHIỀU EMOTE) CHO APP "EZY TUBER"
+=====================================================================
+Tôi gửi kèm 1 file ZIP chứa các layer PNG của một nhân vật (đã tách bằng công cụ See-through từ ảnh gốc, xuất từ PSD).
+Hãy tạo MODEL hoàn chỉnh (format 2) cho app Ezy Tuber từ các layer đó. Model hỗ trợ NHIỀU BIỂU CẢM KHUÔN MẶT (mắt, miệng) và NHIỀU EMOTE
+mà người dùng đổi bằng phím tắt khi đang stream. Nếu trong zip chỉ có một trạng thái (không có layer biểu cảm/emote) thì vẫn rig bình thường như bản cũ
+(format 1, bỏ qua mục 2.7 và 4B). Đọc kỹ phần "CÁCH EZY TUBER HOẠT ĐỘNG" bên dưới —
+mọi công thức đều là thật, KHÔNG được đoán hay tự suy diễn khác đi.
+
+---------------------------------------------------------------------
+ 1. ĐẦU RA BẮT BUỘC
+---------------------------------------------------------------------
+Một file zip DUY NHẤT tên <TenModel>.zip, bên trong có đúng MỘT thư mục gốc <TenModel>/ với cấu trúc:
+
+  <TenModel>/
+    model.json          khung xương (mô tả ở mục 4)
+    settings.json       {"name":"<Tên hiển thị>","hotkey":"","scale":100,"tune":{}}
+    assets/
+      layer/            ảnh các layer, đặt tên NNN_id.png (NNN = thứ tự chồng lớp 000,001,...)
+      emo/              ảnh miệng mở và emote (sprite có "show":"talk" hoặc "emote"); không có thì bỏ thư mục này
+
+- Ảnh đã được CẮT GỌN theo vùng có pixel (alpha > 0): mỗi PNG chỉ chứa phần có nội dung. KHÔNG sửa pixel, không đổi màu, không resize.
+  Vị trí gốc của ảnh trong canvas được ghi vào x,y của sprite trong model.json.
+- <TenModel> dùng chữ/số/dấu cách/_/-, không ký tự đặc biệt của tên file Windows ( < > : " / \ | ? * ).
+- Người dùng sẽ giải nén thư mục này vào thư mục "model/" của Ezy Tuber, hoặc mở bằng app Ezy Maker để chỉnh tiếp bằng kéo-thả.
+
+---------------------------------------------------------------------
+ 2. CÁCH EZY TUBER HOẠT ĐỘNG (đọc kỹ)
+---------------------------------------------------------------------
+2.1 Hệ toạ độ & hiển thị
+- Mọi toạ độ là pixel của CANVAS GỐC (thường 1024x1024). x sang phải, y xuống dưới. Gốc (0,0) ở góc trên trái.
+- Mỗi sprite là 1 ảnh đã cắt gọn, đặt tại (x,y) = góc trên trái của ảnh trong canvas gốc, kích thước w,h = đúng kích thước file ảnh.
+- "crop" = khung hiển thị {x,y,w,h} (toạ độ canvas gốc). Cửa sổ app có tỉ lệ w/h của crop; S = min(chiềuCaoCửaSổ/crop.h, chiềuRộngCửaSổ/crop.w).
+  Vị trí trên màn hình = (x - crop.x)*S, (y - crop.y)*S. Phần nằm ngoài crop bị CẮT MẤT.
+  => crop phải bao trọn nhân vật + LỀ: trên +28px, hai bên +20px (để đầu nảy lên và tóc/tay áo/ruy băng đung đưa không bị cắt). Đáy = mép dưới của nhân vật.
+  Công thức: crop = {x: minX-20, y: minY-28, w: (maxX-minX)+40, h: (maxY-minY)+28} với minX,minY,maxX,maxY là hộp bao của TẤT CẢ sprite xuất ra.
+- THỨ TỰ MẢNG "sprites" = THỨ TỰ CHỒNG LỚP: phần tử đầu nằm DƯỚI CÙNG, phần tử cuối nằm TRÊN CÙNG.
+
+2.2 Khớp (nodes) và phép biến đổi
+- "nodes" là cây khớp. Mỗi khớp có id, parent (khớp cha hoặc bỏ trống = gốc), pivot [x,y] = điểm xoay (toạ độ canvas gốc).
+- CHA PHẢI ĐỨNG TRƯỚC CON trong mảng nodes.
+- Mỗi khung hình, khớp n có các đại lượng cục bộ: tx,ty (px, y dương = XUỐNG), rot (độ, dương = xoay THUẬN chiều kim đồng hồ trên màn hình), sx,sy (tỉ lệ).
+  Ma trận cục bộ = T(pivot + (tx,ty)) · R(rot) · S(sx,sy) · T(-pivot).   Ma trận thế giới = MaTrậnThếGiớiCủaCha · MaTrậnCụcBộ.
+  Sprite gắn vào khớp n được vẽ với ma trận thế giới của n. Sprite có "node": null đứng yên.
+  Vì vậy: ĐẦU gắn vào CỔ gắn vào THÂN => khi thân/cổ nghiêng, đầu đi theo; con luôn dính vào cha, không bị "tách cổ".
+
+2.3 Tín hiệu đầu vào (mỗi khung hình)
+- lx, ly ∈ [-1,1]: vị trí chuột so với model. lx>0 = chuột bên PHẢI model; ly>0 = chuột bên DƯỚI. Làm mượt dần về mục tiêu.
+- lvl ∈ [0,1]: âm lượng micro. Đang "nói" (talk) khi lvl > 0.1.
+- sn = sin(2·t) ∈ [-1,1]: nhịp thở.
+- blink v ∈ [0,1]: tiến độ chớp mắt (tự chớp ngẫu nhiên mỗi ~2–5 giây, kéo dài ~0.14s).
+
+2.4 Chuyển động của khớp (thứ tự tính)
+  rot  = rest.rot                                   (góc mặc định, mặc định 0)
+  tx  += look.x · lx ;   ty += look.y · ly ;   rot += look.rot · lx          (theo chuột)
+  ty  += voice.y · lvl ; sy *= 1 + voice.sy · lvl                              (khi nói)
+  ty  += breath.y · sn ; sy *= 1 + breath.sy · sn                              (nhịp thở)
+  (các số trên còn nhân thêm hệ số chung của người dùng, mặc định = 1)
+  Lò xo "spring" (đung đưa có quán tính, theo góc):
+     s = tínHiệu(src) · amp                (amp mặc định 1)
+     x là biến lò xo bám theo s:  x'' = -k·(x - s) - c·x'   (k = độ cứng, c = giảm chấn)
+     rot += gain · (x - s)
+  "springY": y như spring nhưng cộng vào ty:  ty += gain · (y - s).
+  src hợp lệ: "lx", "ly", "lvl", hoặc "<idKhớp>.rot" / "<idKhớp>.ty" = giá trị rot/ty (TRƯỚC khi cộng lò xo, đã gồm rest+look+voice+breath)
+  của khớp đó; khớp được tham chiếu phải đứng TRƯỚC trong mảng nodes. Vd tóc: {"src":"head.rot"} => tóc đung đưa trễ pha so với đầu.
+  Lò xo ổn định khi k trong ~[20..250], c trong ~[1..30]. (ζ = c / (2·√k); ζ≈0.4–0.6 cho cảm giác đung đưa tự nhiên.)
+  Các số px (look.x/y, voice.y, breath.y) là pixel của canvas gốc, nên PHẢI TỈ LỆ THEO KÍCH THƯỚC NHÂN VẬT:
+  giá trị mẫu ở mục 6 dùng cho nhân vật cao ~1000px; nhân vật cao H px thì nhân các số px với H/1000.
+
+2.5 Hiệu ứng riêng của sprite (các trường tuỳ chọn trong sprite)
+- "show": "talk" (chỉ hiện khi đang nói) | "!talk" (chỉ hiện khi KHÔNG nói) | "emote" (chỉ hiện khi người dùng bật emote). Không có = luôn hiện.
+- "blink": {"sq":1} => khi chớp, ép dẹt theo trục dọc: scaleY = 1 - 0.92·v quanh TÂM sprite (dùng cho layer mắt/tròng mắt).
+           {"dy":N}  => khi chớp, dịch xuống N·v pixel (dùng cho layer MI MẮT trên để mi sụp xuống phủ mắt). N ≈ 30–45% chiều cao tròng mắt.
+- "vs": {"x":[x0,x1],"y":[y0,y1],"ox":0..1,"oy":0..1} => co giãn theo âm lượng: kx = x0 + x1·lvl, ky = y0 + y1·lvl, quanh điểm (ox,oy) của sprite
+  (tỉ lệ theo w,h; ox=0.5,oy=0 = giữa cạnh trên). Dùng cho MIỆNG MỞ: {"x":[0.8,0.3],"y":[0.35,0.65],"ox":0.5,"oy":0}.
+- Miệng: layer miệng đóng "show":"!talk"; layer miệng mở "show":"talk" + "vs". Cả hai gắn cùng khớp "mouth".
+- LƯU Ý: app KHÔNG hỗ trợ tráo sang ảnh "mắt nhắm" riêng. Chớp mắt chỉ qua "sq"/"dy". Nếu thiếu layer miệng mở hoặc mắt nhắm thì đừng bịa; xem mục 5.
+
+2.6 Thanh kéo tinh chỉnh ("tune") — người dùng chỉnh trong cửa sổ Cài đặt của Ezy Tuber
+- Mỗi phần tử: {"k":"khóa_duy_nhất","label":"Nhãn tiếng Việt","group":"Tên nhóm","min":..,"max":..,"step":..,"set":["idKhớp.nhóm.thuộcTính", ...],"sign":-1 (tuỳ chọn)}
+  "set" là danh sách đường dẫn tới các số trong nodes mà thanh kéo ghi đè (vd "head.look.rot", "armL.spring.k"). Giá trị mặc định lấy từ chính nodes.
+  "sign":-1 = hiển thị đảo dấu (dùng cho voice.y / breath.y âm để người dùng thấy số dương). Một thanh có thể điều khiển nhiều khớp (cặp trái/phải).
+- Thanh "nhân chung" dùng "g" thay "set": g ∈ look|voice|breath|spring|range|follow|vfollow kèm "def". LUÔN đưa nguyên 7 thanh dưới đây vào đầu danh sách:
+  [{"k":"m_look","label":"Mức dịch theo chuột (nhân chung)","group":"Tổng thể (chỉnh nhanh)","min":0,"max":2.5,"step":0.05,"g":"look","def":1},{"k":"m_voice","label":"Mức nảy khi nói (nhân chung)","group":"Tổng thể (chỉnh nhanh)","min":0,"max":2.5,"step":0.05,"g":"voice","def":1},{"k":"m_breath","label":"Mức nhịp thở (nhân chung)","group":"Tổng thể (chỉnh nhanh)","min":0,"max":3,"step":0.05,"g":"breath","def":1},{"k":"m_spring","label":"Mức đung đưa tóc/tay/váy (nhân chung)","group":"Tổng thể (chỉnh nhanh)","min":0,"max":2.5,"step":0.05,"g":"spring","def":1},{"k":"m_range","label":"Độ nhạy chuột (to = chạm cực nhanh hơn)","group":"Theo dõi chuột & phản hồi","min":0.3,"max":3,"step":0.05,"g":"range","def":1},{"k":"m_follow","label":"Tốc độ đầu đuổi theo chuột","group":"Theo dõi chuột & phản hồi","min":0.03,"max":0.6,"step":0.01,"g":"follow","def":0.15},{"k":"m_vfollow","label":"Tốc độ phản ứng với giọng nói","group":"Theo dõi chuột & phản hồi","min":0.1,"max":1,"step":0.01,"g":"vfollow","def":0.4}]
+- Ví dụ thanh thường: [{"k":"head_rest","label":"Độ nghiêng đầu mặc định (°)","group":"Đầu & cổ","min":-20,"max":20,"step":0.1,"set":["head.rest.rot"]},{"k":"torso_voice","label":"Thân nảy khi nói (px)","group":"Thân & nảy khi nói","min":0,"max":10,"step":0.1,"set":["torso.voice.y"],"sign":-1},{"k":"hairb_gain","label":"Tóc sau: độ đung đưa","group":"Tóc","min":0,"max":4,"step":0.05,"set":["hair_back.spring.gain"]},{"k":"arm_k","label":"Tay áo: độ cứng","group":"Tay áo & váy","min":20,"max":250,"step":1,"set":["armL.spring.k","armR.spring.k"]}]
+- Mỗi tham số số trong nodes (rest.rot, look.x/y/rot, voice.y/sy, breath.y/sy, spring.gain/k/c/amp, springY.gain/k/c) nên có 1 thanh kéo với min..max bao quanh giá trị mặc định.
+  Nhóm (group) gợi ý: "Đầu & cổ", "Mắt & miệng", "Thân & nảy khi nói", "Tóc", "Tay áo & váy". Nhãn bằng tiếng Việt, ngắn gọn, có đơn vị (px, °).
+
+2.7 BIỂU CẢM KHUÔN MẶT & EMOTE (format 2) — phần quan trọng nhất của bản mới
+Ý tưởng: model khai báo các "nhóm biểu cảm" (vd "eyes" = mắt, "mouth" = miệng), mỗi nhóm có nhiều "trạng thái" (bình thường, vui, nhắm...) và đúng MỘT
+trạng thái đang được chọn tại mỗi thời điểm. Mỗi sprite có thể gắn điều kiện "when" để chỉ hiện ở một số trạng thái. Ngoài ra có danh sách "emotes"
+(trái tim, giọt mồ hôi, dấu giận...) bật/tắt độc lập. Người dùng gán PHÍM TẮT cho từng trạng thái/emote ngay trong app (bạn KHÔNG cần tạo phím tắt).
+- "expressions": { "<idNhóm>": { "name": "Tên hiển thị", "default": "<idTrạngThái mặc định>", "states": [ {"id":"normal","name":"Bình thường"}, ... ] }, ... }
+    * idNhóm tuỳ ý (chữ/số/_/-), KHÔNG được đặt là "emote". Tối đa 8 nhóm, mỗi nhóm tối đa 32 trạng thái. Nên dùng "eyes" và "mouth"; có thể thêm nhóm khác (vd "cheek").
+    * "default" phải là id của một trạng thái trong "states". Khi mở model và khi bấm "đặt lại", mỗi nhóm về trạng thái mặc định (nên đặt "normal").
+- "emotes": [ {"id":"heart","name":"Trái tim","duration":3,"group":"mood"}, ... ]  (tối đa 32)
+    * duration (giây, 0..600, tuỳ chọn): tự tắt sau N giây; bỏ qua hoặc 0 = bật cho tới khi người dùng tắt.
+    * group (tuỳ chọn): các emote cùng group loại trừ nhau (bật cái này thì cái kia tắt); emote không có group thì bật độc lập.
+- Sprite có thêm trường "when": { "<idNhóm>": ["id1","id2"], "emote": ["idEmote"] }
+    * Mỗi giá trị là một chuỗi hoặc mảng chuỗi. Sprite HIỆN khi: với MỌI khoá trong when đều thoả (AND); trong một khoá, chỉ cần khớp MỘT giá trị (OR).
+      Khoá nhóm biểu cảm: trạng thái đang chọn của nhóm đó phải nằm trong mảng. Khoá "emote": phải có ÍT NHẤT MỘT emote trong mảng đang bật.
+    * Sprite KHÔNG có "when" thì không bị điều kiện này chi phối (vẫn tuân theo "show" nếu có).
+    * "when" kết hợp với "show" bằng AND. Ví dụ miệng cười khi đang nói: { "show":"talk", "when":{"mouth":["smile"]} }.
+- CÁCH THIẾT KẾ nhóm "eyes": mọi sprite thuộc mắt (tròng/lòng đen, mi mắt, lông mày nếu đổi theo biểu cảm...) phải có "when":{"eyes":[...]}.
+    * Layer mắt gốc => when:{"eyes":["normal"]}.  Layer mắt "cười ^^" => when:{"eyes":["happy"]}.  Layer mắt nhắm => when:{"eyes":["closed"]}.
+    * Mỗi trạng thái phải có ít nhất 1 sprite, nếu không mắt sẽ trống khi chọn trạng thái đó. Layer nền da/mặt thì KHÔNG gắn when (luôn hiện).
+    * Chớp mắt ("blink") chỉ gắn cho layer mắt ở trạng thái GỐC ("normal"). Layer biến thể (nhắm, cười) KHÔNG gắn blink.
+- CÁCH THIẾT KẾ nhóm "mouth": mỗi trạng thái miệng có thể có tối đa 2 sprite: miệng ĐÓNG và miệng MỞ (khi nói).
+    * Có cả hai: đóng => {"show":"!talk","when":{"mouth":["smile"]}};  mở => {"show":"talk","vs":{...},"when":{"mouth":["smile"]}}.
+    * Chỉ có miệng đóng (vd miệng buồn): KHÔNG gắn "show" cho nó => hiện cả khi nói (miệng không cử động). Đó là chấp nhận được.
+    * Miệng mở dùng "vs" như mục 2.5. Tất cả sprite miệng gắn cùng khớp "mouth".
+- EMOTE: mỗi emote là 1 hoặc vài sprite hình biểu tượng (trái tim, giọt mồ hôi...) gắn khớp "head" (đi theo đầu) với when:{"emote":["heart"]}.
+  Không dùng "show":"emote" kiểu cũ cho emote mới (kiểu cũ chỉ còn để tương thích model cũ).
+- Chuyển biểu cảm chỉ đổi sprite nào đang hiện; chuyển động (khớp, lò xo, chớp, nói) vẫn chạy bình thường trên các sprite đang hiện.
+- CÁCH ĐẶT TÊN LAYER giúp tự nhận diện (nên gợi ý cho người dùng đặt khi gửi layer): "<bộphận>_<biếnthể>[-l|-r]" ví dụ
+    irides_happy-l, irides_closed-r, eyelash_happy-l, mouth_smile, mouth_smile_open, mouth_sad, emote_heart, emote_sweat.
+  Layer không có biến thể = trạng thái "normal" (mặc định). Hậu tố -l / -r là bên trái/phải. Từ "open" trong tên miệng = miệng mở.
+  Nếu tên layer khác kiểu trên, hãy NHÌN ảnh từng layer để quyết định nó là trạng thái/emote nào, đặt id gọn bằng chữ không dấu.
+
+---------------------------------------------------------------------
+ 3. QUY TẮC HỢP LỆ (Ezy Tuber TỪ CHỐI model vi phạm — phải tự kiểm tra trước khi nộp)
+---------------------------------------------------------------------
+- id khớp, id sprite: chỉ chữ/số/_/- , 1–40 ký tự, KHÔNG trùng nhau (trong loại của nó). Bỏ dấu tiếng Việt khỏi id.
+- nodes: cha phải tồn tại và đứng trước con; pivot là mảng 2 số.
+- sprites: không rỗng; src là đường dẫn TƯƠNG ĐỐI trong thư mục model (không có "..", không bắt đầu bằng / hay ổ đĩa) và file phải tồn tại; x,y,w,h là số (w,h>0);
+  node là id khớp có thật hoặc null.
+- crop: {x,y,w,h} số, w,h > 0.
+- tune: mỗi "k" khớp /^[A-Za-z0-9_]{1,40}$/ và duy nhất; có label, group (chuỗi); min<max, step>0;
+  hoặc có "g" (thuộc danh sách trên) + "def" (số); hoặc có "set" (mảng đường dẫn dạng "khớp.nhóm.thuộc_tính", 2–4 đoạn, khớp phải tồn tại).
+- expressions: object; id nhóm /^[A-Za-z0-9_\-]{1,40}$/ và KHÁC "emote"; tối đa 8 nhóm; mỗi nhóm có "states" là mảng 1–32 phần tử, id trạng thái hợp lệ và không trùng
+  trong nhóm; "default" thuộc các id đó; "name" (nếu có) là chuỗi.
+- emotes: mảng tối đa 32; id hợp lệ, không trùng; duration (nếu có) là số 0..600; group (nếu có) là id hợp lệ; name (nếu có) là chuỗi.
+- sprite.when (nếu có): object; mỗi khoá hoặc là "emote" (giá trị phải là id emote đã khai báo) hoặc là id một nhóm đã khai báo trong expressions (giá trị phải là id trạng thái
+  của nhóm đó); giá trị là chuỗi hoặc mảng 1–32 chuỗi.
+- model.json là JSON thuần (UTF-8), không comment, không dấu phẩy thừa.
+
+---------------------------------------------------------------------
+ 4. ĐỊNH DẠNG model.json
+---------------------------------------------------------------------
+{
+ "format": 2,                    (1 nếu không có biểu cảm/emote)
+ "name": "<Tên hiển thị>",
+ "crop": {"x": 307, "y": -7, "w": 422, "h": 1024},
+ "nodes": [ ... ],
+ "expressions": { ... },        (mục 2.7; bỏ nếu không có biểu cảm)
+ "emotes": [ ... ],             (mục 2.7; bỏ nếu không có emote)
+ "sprites": [ ... ],
+ "tune": [ ... ]
+}
+4B. Ví dụ biểu cảm & emote (lấy từ model demo đã chạy tốt trong Ezy Tuber)
+"expressions": {"eyes":{"name":"Mắt","default":"normal","states":[{"id":"normal","name":"Bình thường"},{"id":"happy","name":"Vui"},{"id":"closed","name":"Nhắm mắt"}]},"mouth":{"name":"Miệng","default":"normal","states":[{"id":"normal","name":"Bình thường"},{"id":"smile","name":"Cười"},{"id":"sad","name":"Buồn"}]}}
+"emotes": [{"id":"heart","name":"Trái tim","duration":3,"group":"mood"},{"id":"sweat","name":"Mồ hôi","duration":5},{"id":"anger","name":"Giận dữ","group":"mood"}]
+Sprite có điều kiện tương ứng (mắt gốc / mắt cười / mắt nhắm / mi mắt / miệng đóng gốc / miệng cười / miệng cười mở / miệng buồn / emote tim):
+[{"id":"mouth","src":"assets/layer/012_mouth.png","node":"mouth","x":503,"y":161,"w":22,"h":8,"when":{"mouth":["normal"]}},{"id":"irides_l","src":"assets/layer/014_irides_l.png","node":"eyeL","x":523,"y":118,"w":33,"h":30,"blink":{"sq":1},"when":{"eyes":["normal"]}},{"id":"eyelash_l","src":"assets/layer/015_eyelash_l.png","node":"eyeL","x":522,"y":114,"w":39,"h":20,"blink":{"dy":9},"when":{"eyes":["normal"]}},{"id":"irides_happy_l","src":"assets/layer/019_irides_happy_l.png","node":"eyeL","x":525,"y":122,"w":28,"h":14,"when":{"eyes":["happy"]}},{"id":"irides_closed_l","src":"assets/layer/021_irides_closed_l.png","node":"eyeL","x":525,"y":128,"w":28,"h":13,"when":{"eyes":["closed"]}},{"id":"mouth_smile","src":"assets/layer/023_mouth_smile.png","node":"mouth","x":503,"y":159,"w":22,"h":11,"show":"!talk","when":{"mouth":["smile"]}},{"id":"mouth_smile_open","src":"assets/emo/mouth_smile_open.png","node":"mouth","x":502,"y":164,"w":24,"h":15,"show":"talk","vs":{"x":[0.8,0.3],"y":[0.35,0.65],"ox":0.5,"oy":0},"when":{"mouth":["smile"]}},{"id":"mouth_sad","src":"assets/layer/025_mouth_sad.png","node":"mouth","x":504,"y":163,"w":20,"h":11,"when":{"mouth":["sad"]}},{"id":"emote_heart","src":"assets/layer/026_emote_heart.png","node":"head","x":591,"y":42,"w":42,"h":37,"when":{"emote":["heart"]}}]
+
+Ví dụ sprite (lấy từ model mẫu đã chạy tốt):
+[{"id":"back_hair","src":"assets/layer/000_back_hair.webp","node":"hair_back","x":403,"y":21,"w":207,"h":181},{"id":"back_bottomwear","node":"skirt","src":"assets/layer/005_back_bottomwear.webp","x":406,"y":344,"w":222,"h":176},{"id":"face","src":"assets/layer/013_face.webp","node":"head","x":444,"y":47,"w":123,"h":139},{"id":"mouth","src":"assets/layer/014_mouth.webp","node":"mouth","x":503,"y":161,"w":22,"h":8,"show":"!talk"},{"id":"mouth_open","src":"assets/emo/mouth_open.png","node":"mouth","x":503,"y":161,"w":22,"h":17,"show":"talk","vs":{"x":[0.8,0.3],"y":[0.35,0.65],"ox":0.5,"oy":0}},{"id":"irides-l","src":"assets/layer/016_irides-l.webp","node":"eyeL","x":523,"y":118,"w":33,"h":30,"blink":{"sq":1}},{"id":"eyelash-l","src":"assets/layer/017_eyelash-l.webp","node":"eyeL","x":522,"y":114,"w":39,"h":20,"blink":{"dy":9}},{"id":"bubble","src":"assets/emo/bubble.webp","node":"head","x":590,"y":20,"w":84,"h":78,"show":"emote"}]
+
+Ví dụ khung xương ĐÃ CHẠY TỐT cho nhân vật cao ~996px (dùng làm giá trị tham khảo, chỉnh pivot theo layer thật của bạn):
+[{"id":"torso","parent":null,"pivot":[517,450],"look":{"rot":0.8,"x":1.5},"voice":{"y":-2.5},"breath":{"y":-0.6,"sy":0.004}},{"id":"neck","parent":"torso","pivot":[518,205],"look":{"rot":1.2,"x":0.8}},{"id":"head","parent":"neck","pivot":[518,190],"look":{"rot":3.5,"x":2.4,"y":4},"voice":{"y":-1.5},"breath":{"y":-0.8},"rest":{"rot":8}},{"id":"hair_back","parent":"head","pivot":[506,50],"spring":{"src":"head.rot","gain":1.3,"k":70,"c":7},"springY":{"src":"head.ty","gain":0.5,"k":70,"c":7}},{"id":"hair_front","parent":"head","pivot":[511,40],"spring":{"src":"head.rot","gain":0.6,"k":100,"c":9},"springY":{"src":"head.ty","gain":0.6,"k":100,"c":9}},{"id":"eyeL","parent":"head","pivot":[540,133],"look":{"x":1.8,"y":3}},{"id":"eyeR","parent":"head","pivot":[480,143],"look":{"x":1.8,"y":3}},{"id":"browL","parent":"head","pivot":[531,97],"look":{"x":1,"y":2.5},"voice":{"y":-1.2}},{"id":"browR","parent":"head","pivot":[476,104],"look":{"x":1,"y":2.5},"voice":{"y":-1.2}},{"id":"mouth","parent":"head","pivot":[514,165],"look":{"x":0.9,"y":1.8}},{"id":"armL","parent":"torso","pivot":[585,230],"spring":{"src":"lx","amp":4,"gain":1,"k":60,"c":6}},{"id":"armR","parent":"torso","pivot":[455,235],"spring":{"src":"lx","amp":4,"gain":1,"k":60,"c":6}},{"id":"skirt","parent":"torso","pivot":[517,355],"spring":{"src":"lx","amp":3,"gain":0.6,"k":70,"c":7}}]
+
+Thứ tự chồng lớp của model mẫu (dưới -> trên), để biết cách sắp:
+back_hair -> footwear -> back_bottomwear -> legwear -> front_bottomwear -> handwear-l -> handwear-r -> neck -> topwear -> ears-r -> ears-l -> eyebrow-l -> face -> mouth -> mouth_open -> eyebrow-r -> irides-l -> eyelash-l -> irides-r -> front_hair -> eyelash-r -> bubble
+
+---------------------------------------------------------------------
+ 5. CÁCH LÀM — các bước bắt buộc
+---------------------------------------------------------------------
+B1. Giải nén zip. Mở TỪNG layer (nhìn ảnh thật) và ghép tất cả theo thứ tự thành ảnh xem trước để hiểu nhân vật. Nếu có layers.json thì dùng nó
+    cho thứ tự/tên/vị trí (xem "left","top","width","height"); nếu không, thứ tự = số đầu tên file. Mỗi PNG thường có kích thước bằng canvas và nội dung đã nằm đúng chỗ
+    (ghép bằng alpha_composite tại (0,0)); nếu ảnh bị cắt sẵn thì phải dùng left/top. Tính hộp bao alpha (bbox) của từng layer.
+B2. Xác định vai trò từng layer: tóc sau, tóc trước, mặt, tai, lông mày, tròng mắt, mi mắt, miệng, cổ, áo thân, tay áo, váy, chân, giày, phụ kiện...
+    - Tìm layer bị che HOÀN TOÀN bởi các layer phía trên (tính độ phủ alpha tích luỹ từ trên xuống): vd lòng trắng mắt nằm dưới layer mặt đục. Layer như vậy KHÔNG xuất.
+      (Ngoại lệ: lông mày/tai bị tóc che vẫn nên giữ vì tóc đung đưa có thể làm lộ ra.)
+B2b. NHẬN DIỆN BIỂU CẢM & EMOTE: nhóm layer theo bộ phận (mắt, miệng) rồi theo biến thể (normal, happy, closed, smile, sad...). Lập danh sách
+    "expressions" (default = "normal") và "emotes". Gán "when" cho từng sprite theo mục 2.7. Kiểm tra: mỗi trạng thái có ít nhất 1 sprite; layer mắt gốc có when "normal";
+    layer da/mặt không có when; mọi emote có sprite. Đặt "duration" hợp lý cho emote kiểu "bật tạm" (trái tim, mồ hôi ~3–5 giây); các emote biểu thị
+    cảm xúc loại trừ nhau (vui/giận/buồn...) thì cho cùng một "group" (vd "mood").
+B3. Dựng cây khớp mặc định:  torso(gốc) -> neck -> head -> { hair_back, hair_front, eyeL, eyeR, browL, browR, mouth }, torso -> { armL, armR, skirt }.
+    Chỉ tạo khớp có layer. Quy tắc pivot (toạ độ canvas gốc):
+      torso: x = giữa áo/váy, y ≈ eo/hông (≈ 60% chiều cao váy tính từ mép trên váy).
+      neck : x = giữa cổ, y ≈ gần chân cổ (≈ 83% chiều cao layer cổ).
+      head : x = giữa cổ, y = mép dưới layer mặt + ~4px (điểm cằm/khớp cổ) — để khi đầu xoay, cằm gần như đứng yên và cổ không lộ khe.
+      hair_back/hair_front: x = giữa layer tóc, y = mép trên layer + ~15% chiều cao (treo từ đỉnh đầu).
+      eyeL/eyeR, browL/R, mouth: tâm hộp bao layer tương ứng — tính trên layer ở trạng thái GỐC (normal), không tính các layer biến thể. (L/R chỉ là nhãn để ghép cặp: theo hậu tố -l/-r trong tên layer nếu có, không thì theo vị trí trên màn hình.)
+      armL/armR: gần vai (mép trên layer tay, hơi lệch về phía thân). skirt: giữa mép trên váy + ~6% chiều cao.
+B4. Gán chuyển động mặc định theo bảng ở mục 6 (nhân px theo H/1000). Tóc dùng spring bám "head.rot" + springY bám "head.ty"; tay áo/váy dùng spring bám "lx".
+B5. NẮN THẲNG ĐẦU: ảnh gốc hay bị nghiêng đầu. Đo góc đường nối tâm hai tròng mắt: ang = atan2(yPhải-yTrái, xPhải-xTrái) (độ, theo màn hình, y xuống).
+    Nếu |ang| > 1.5° thì đặt head.rest.rot ≈ -0.9·ang (làm tròn 0.5, giới hạn ±20). Kiểm tra bằng ảnh ghép: xoay các layer thuộc đầu quanh pivot đầu
+    một góc rest.rot (PIL: im.rotate(-góc, center=pivot)), mắt phải ngang bằng và KHÔNG lộ khe ở cổ.
+B6. Mắt (trạng thái gốc): tròng mắt "blink":{"sq":1}; mi mắt trên "blink":{"dy":N}; layer biến thể KHÔNG blink. Miệng: xem 2.5 và 2.7.
+B7. Kiểm tra thứ tự chồng lớp (lỗi hay gặp):
+      - Lớp lót/phía sau của váy ("back bottomwear") phải nằm DƯỚI layer chân, còn váy ngoài nằm TRÊN chân; nếu để lót đè lên đùi sẽ thành dải phẳng.
+      - Tay áo nằm TRÊN váy ngoài nhưng DƯỚI áo thân (topwear) để vai áo che khớp vai.
+      - Cổ nằm dưới áo thân; layer cổ phải kéo dài xuống dưới mặt (đã được See-through vẽ bù) nên khi đầu xoay không lộ khe.
+      - Tóc sau nằm dưới cùng/dưới thân; tóc trước nằm trên mặt.
+B8. crop: tính theo công thức ở 2.1. Chú ý đỉnh đầu có thể nảy lên ~5px và nhìn lên thêm; lề trên 28px là đủ cho giá trị mặc định.
+B9. Sinh "tune" theo 2.6. Chạy bộ kiểm tra hợp lệ (mục 7) — PHẢI in "OK".
+B10. Ghép ảnh xem trước TỪNG TRẠNG THÁI: với mỗi tổ hợp tiêu biểu (mắt gốc + miệng gốc; mắt vui + miệng cười; mắt nhắm + miệng buồn...) chỉ ghép các sprite thoả "when" rồi nhìn kiểm tra:
+     không bị chồng 2 mắt/2 miệng, không bị trống, emote nằm đúng chỗ. Sau đó ghép TƯ THẾ NGHỈ (không biến đổi, có rest.rot của đầu) và kiểm tra bằng mắt: không lộ khe, thứ tự đúng, đầu thẳng.
+     (Nếu môi trường của bạn chạy được Chromium/Electron thì càng tốt, nhưng không bắt buộc.)
+B11. Đóng zip: thư mục gốc <TenModel>/ (không thêm thư mục cha nào khác), dùng zipfile của Python (ZIP_DEFLATED), đường dẫn trong zip dùng "/".
+B12. Trả lời bằng tiếng Việt, ngắn gọn: liệt kê (a) layer nào đã bỏ vì bị che, các nhóm biểu cảm/trạng thái/emote đã tạo (kèm duration/group), (b) góc nghiêng đầu đã nắn, (c) những thứ thiếu/dùng tạm,
+     (d) 3–5 điều người dùng nên chỉnh tay trong Ezy Maker (tab Biểu cảm), và nhắc người dùng GÁN PHÍM TẮT trong Ezy Tuber: Cài đặt (Win+F12) -> tab Biểu cảm. KHÔNG dán lại toàn bộ model.json vào câu trả lời; đưa file zip.
+
+---------------------------------------------------------------------
+ 6. GIÁ TRỊ MẶC ĐỊNH THAM KHẢO (nhân vật cao ~1000px; nhân px theo H/1000)
+---------------------------------------------------------------------
+  torso    look{rot:0.8, x:1.5}  voice{y:-2.5}  breath{y:-0.6, sy:0.004}
+  neck     look{rot:1.2, x:0.8}
+  head     look{rot:3.5, x:2.4, y:4}  voice{y:-1.5}  breath{y:-0.8}  rest{rot: theo B5}
+  hair_back  spring{src:"head.rot", gain:1.3, k:70, c:7}   springY{src:"head.ty", gain:0.5, k:70, c:7}
+  hair_front spring{src:"head.rot", gain:0.6, k:100, c:9}  springY{src:"head.ty", gain:0.6, k:100, c:9}
+  eyeL/eyeR  look{x:1.8, y:3}
+  browL/R    look{x:1, y:2.5}  voice{y:-1.2}
+  mouth      look{x:0.9, y:1.8}
+  armL/armR  spring{src:"lx", amp:4, gain:1, k:60, c:6}
+  skirt      spring{src:"lx", amp:3, gain:0.6, k:70, c:7}
+Chú ý: nhìn LÊN/XUỐNG được thể hiện chủ yếu bằng look.y của đầu và nét mặt (mắt/miệng dịch NHIỀU hơn đầu) nên mắt/miệng nên có look.y lớn hơn đầu một chút.
+
+---------------------------------------------------------------------
+ 7. BỘ KIỂM TRA HỢP LỆ (chạy bằng Python trước khi đóng zip, sửa đến khi in OK)
+---------------------------------------------------------------------
+import json, os, re
+ID = re.compile(r'^[A-Za-z0-9_\-]{1,40}$'); K = re.compile(r'^[A-Za-z0-9_]{1,40}$')
+G = {'look','voice','breath','spring','range','follow','vfollow'}; BAD = {'__proto__','constructor','prototype'}
+num = lambda v: isinstance(v,(int,float)) and not isinstance(v,bool)
+def validate(folder):
+    r = json.load(open(os.path.join(folder,'model.json'),encoding='utf-8'))
+    c = r.get('crop'); assert c and all(num(c.get(k)) for k in 'xywh') and c['w']>0 and c['h']>0, 'crop sai'
+    ids=set()
+    for n in r.get('nodes',[]):
+        assert ID.match(n['id']), 'id khop sai '+str(n['id']); assert n['id'] not in ids, 'trung khop '+n['id']
+        assert n.get('parent') is None or n['parent'] in ids, 'cha khong ton tai/nam sau: '+n['id']
+        assert len(n['pivot'])==2 and all(num(v) for v in n['pivot']), 'pivot sai '+n['id']; ids.add(n['id'])
+    sp=r['sprites']; assert sp, 'khong co sprite'; sids=set()
+    for s in sp:
+        assert ID.match(s['id']) and s['id'] not in sids, 'id sprite sai/trung '+str(s['id']); sids.add(s['id'])
+        src=s['src']; assert not src.startswith('/') and '..' not in src.split('/') and ':' not in src, 'src khong hop le '+src
+        assert os.path.exists(os.path.join(folder,src)), 'thieu anh '+src
+        assert all(num(s[k]) for k in 'xywh') and s['w']>0 and s['h']>0, 'x,y,w,h sai '+s['id']
+        assert s.get('node') is None or s['node'] in ids, 'sprite '+s['id']+' tro toi khop khong co'
+    ex=r.get('expressions',{}); ch={}
+    assert isinstance(ex,dict) and len(ex)<=8, 'expressions phai la object, toi da 8 nhom'
+    for k,d in ex.items():
+        assert ID.match(k) and k!='emote', 'ten nhom sai '+k
+        assert isinstance(d.get('states'),list) and 1<=len(d['states'])<=32, 'nhom '+k+': states sai'
+        sid=set()
+        for s in d['states']: assert ID.match(s['id']) and s['id'] not in sid, 'nhom '+k+': id trang thai sai/trung '+str(s.get('id')); sid.add(s['id'])
+        assert d.get('default') in sid, 'nhom '+k+': default khong thuoc states'; ch[k]=sid
+    em=r.get('emotes',[]); eids=set(); assert isinstance(em,list) and len(em)<=32, 'emotes toi da 32'
+    for e in em:
+        assert ID.match(e['id']) and e['id'] not in eids, 'emote id sai/trung '+str(e.get('id')); eids.add(e['id'])
+        assert 0<=e.get('duration',0)<=600, 'emote '+e['id']+': duration sai'
+        assert 'group' not in e or ID.match(e['group']), 'emote '+e['id']+': group sai'
+    used={k:set() for k in ch}; usedE=set()
+    for s in sp:
+        for k,v in s.get('when',{}).items():
+            a=v if isinstance(v,list) else [v]; assert a and all(isinstance(x,str) for x in a), 'when sai o '+s['id']
+            if k=='emote': assert all(x in eids for x in a), 'when.emote tro emote la o '+s['id']; usedE.update(a)
+            else: assert k in ch and all(x in ch[k] for x in a), 'when.'+k+' sai o '+s['id']; used[k].update(a)
+    for k,sid in ch.items():
+        miss=sid-used[k]
+        if miss: print('CANH BAO: nhom',k,'co trang thai chua co sprite nao:',sorted(miss))
+    if eids-usedE: print('CANH BAO: emote chua co sprite:',sorted(eids-usedE))
+    ks=set()
+    for d in r.get('tune',[]):
+        assert K.match(d['k']) and d['k'] not in ks, 'k sai/trung '+str(d['k']); ks.add(d['k'])
+        assert isinstance(d['label'],str) and isinstance(d['group'],str) and all(num(d[x]) for x in ('min','max','step')) and d['step']>0 and d['max']>d['min'], 'tune sai '+d['k']
+        if 'g' in d: assert d['g'] in G and num(d['def']), 'g/def sai '+d['k']
+        else:
+            assert d['set'], 'thieu set '+d['k']
+            for p in d['set']:
+                a=p.split('.'); assert 2<=len(a)<=4 and all(re.match(r'^[A-Za-z0-9_\-]+$',x) and x not in BAD for x in a) and a[0] in ids, 'duong dan sai '+p
+    print('OK', len(ids),'khop', len(sp),'sprite', len(ks),'thanh keo', len(ch),'nhom bieu cam', len(eids),'emote')
+
+---------------------------------------------------------------------
+ 8. NHỮNG ĐIỀU KHÔNG ĐƯỢC LÀM
+---------------------------------------------------------------------
+- Không đoán công thức; mọi thứ cần biết đã ở trên. Không thêm trường lạ vào model.json.
+- Không resize/tô lại/chỉnh màu ảnh layer. Không đổi tên layer thành tên có dấu/khoảng trắng trong id.
+- Không tạo phím tắt trong model (người dùng tự gán trong app). Không dùng "show":"emote" cho emote mới; dùng when.emote.
+- Không để một trạng thái biểu cảm không có sprite nào, và không để 2 trạng thái cùng hiện chồng lên nhau trong cùng một nhóm.
+- Không nộp khi bộ kiểm tra chưa in OK (dòng CANH BAO cũng phải được giải thích trong báo cáo). Không xuất ảnh toàn canvas (phải cắt gọn theo bbox alpha).
+- Nếu thiếu thứ không thể suy ra (layer miệng mở, mắt nhắm...), nói rõ trong báo cáo thay vì bịa; có thể tạo bản TẠM (vd miệng mở là hình elip hồng
+  kích thước ≈ 1.3× miệng đóng, đặt ở "assets/emo/mouth_open.png") và ghi rõ đó là bản tạm.
+
+HÃY BẮT ĐẦU: giải nén zip tôi gửi, phân tích layer, rig, kiểm tra, rồi trả về file <TenModel>.zip.

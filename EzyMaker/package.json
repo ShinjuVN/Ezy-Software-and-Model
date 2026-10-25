@@ -1,0 +1,16 @@
+{
+  "name": "ezy-maker",
+  "version": "1.0.0",
+  "description": "Ezy Maker - công cụ thiết kế/rig model cho Ezy Tuber",
+  "main": "main.js",
+  "scripts": { "start": "electron .", "build": "electron-builder --win portable" },
+  "devDependencies": { "electron": "^33.0.0", "electron-builder": "^25.0.0" },
+  "build": {
+    "appId": "vn.ezytuber.maker",
+    "productName": "Ezy Maker",
+    "directories": { "output": "dist" },
+    "win": { "target": "portable", "icon": "icon.ico" },
+    "portable": { "artifactName": "EzyMaker.exe" },
+    "files": ["main.js", "preload.js", "index.html", "js/**", "lib/**", "icon.ico", "icon.png"]
+  }
+}
